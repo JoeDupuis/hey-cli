@@ -32,3 +32,4 @@ The legacy `internal/client/` is used only for HTML-scraping gap operations mark
 | `/calendar/todos/{id}/completions.json` | POST | SDK `CalendarTodos().Complete` | `hey todo complete <id>` | covered |
 | `/calendar/todos/{id}/completions.json` | DELETE | SDK `CalendarTodos().Uncomplete` | `hey todo uncomplete <id>` | covered |
 | `/calendar/todos/{id}.json` | DELETE | SDK `CalendarTodos().Delete` | `hey todo delete <id>` | covered |
+| `/search.json` | GET | SDK `Search().Search` | `hey mcp` (MCP tool `search_topics`) | covered (MCP only — no CLI command yet) |

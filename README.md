@@ -125,6 +125,22 @@ hey-cli ships with an embedded agent skill so your agent can interact with HEY o
 hey skill install   # install the skill globally for your agent
 ```
 
+## MCP server
+
+`hey mcp` runs an [MCP](https://modelcontextprotocol.io) server over stdio that exposes the CLI's functionality (mail, search, calendar, todos, habits, time tracking, journal) as tools, so MCP-aware hosts (Claude Desktop, Cowork, etc.) can drive HEY directly without shelling out.
+
+Authenticate first with `hey auth login`, then point your MCP host at `hey mcp`:
+
+```json
+{
+  "mcpServers": {
+    "hey": { "command": "hey", "args": ["mcp"] }
+  }
+}
+```
+
+The server reuses the same credentials as the CLI; tokens refresh automatically. The MCP surface includes a `search_topics` tool — full-text thread search — that has no CLI equivalent yet.
+
 ## Development
 
 ```bash
