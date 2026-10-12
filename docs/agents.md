@@ -59,7 +59,12 @@ action's parameter schema. Listings with more pages come back as
 `page` parameter. The posting-changes feed's last page comes back as
 `{"next_since": ..., "next_v": ..., "results": ...}` — the cursor for the next
 incremental poll, passed back as the action's `since` and `v` parameters.
-Mutations are never retried automatically: a 429/503 on a write surfaces to
-the caller rather than risking a duplicate delivery, so retry a failed write
-yourself once you know it did not land. Logs go to stderr — stdout carries
+`hey_threads` also acts on box items by posting id (`mark_postings_seen`,
+`mark_postings_unseen`, `move_postings`, `trash_postings`, and the rest of
+what `hey seen`, `move`, `trash`, `spam`, `ignore`, `bubble` and `label` do).
+HEY answers those with success even when an id matches no box item, so pass
+the box item ids a box listing returns, not topic ids, and read the box back
+to confirm. Mutations are never retried automatically: a 429/503 on a write
+surfaces to the caller rather than risking a duplicate delivery, so retry a
+failed write yourself once you know it did not land. Logs go to stderr — stdout carries
 the MCP wire protocol.

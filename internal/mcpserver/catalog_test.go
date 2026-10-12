@@ -55,7 +55,7 @@ func TestCatalogUnmappedTagsArePinned(t *testing.T) {
 	want := []string{
 		"Attachments", "Bulk Reply", "Calendar Events", "Calendar Habits", "Calendar Journal",
 		"Calendar Periods", "Calendar Time Tracks", "Clips",
-		"Collections", "Extenzions", "Folders", "Postings",
+		"Collections", "Extenzions", "Folders",
 		"Publications", "Snippets", "Stickies", "Workflows",
 	}
 	got, _ := json.Marshal(unmapped)

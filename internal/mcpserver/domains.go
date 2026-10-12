@@ -25,8 +25,8 @@ var DomainSpecs = []catalog.DomainSpec{
 	},
 	{
 		Key:   "threads",
-		Tags:  []string{"Topics", "Entries", "Messages"},
-		Blurb: "HEY email threads: topics and their entries, renaming a thread, full message content, replies and forwards, drafts, and triage (trash, spam, restore, move).",
+		Tags:  []string{"Topics", "Entries", "Messages", "Postings"},
+		Blurb: "HEY email threads: topics and their entries, renaming a thread, full message content, replies and forwards, drafts, and triage (trash, spam, restore, move). The *_postings actions act on box items by posting id, one or many at once, as hey seen, unseen, move, trash, spam, ignore, bubble and label do; HEY answers ok even for an id that matches nothing, so pass box item ids (not topic ids) and check the box afterwards.",
 	},
 	{
 		Key:   "contacts",

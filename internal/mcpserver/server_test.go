@@ -2,6 +2,7 @@ package mcpserver
 
 import (
 	"log/slog"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -103,12 +104,62 @@ func TestServerDispatchesToolCallsThroughAPI(t *testing.T) {
 	}
 }
 
+func TestServerMarksPostingsSeenAndUnseen(t *testing.T) {
+	api := &fakeAPI{}
+	_, session := connect(t, api, Config{})
+
+	text, isError := mcptest.CallText(t, session, "hey_threads", map[string]any{
+		"action": "mark_postings_seen",
+		"params": map[string]any{"posting_ids": []any{1262788788, 1259480157}},
+	})
+	if isError {
+		t.Fatalf("mark_postings_seen failed: %s", text)
+	}
+	if api.method != "POST" || api.path != "/postings/seen.json" {
+		t.Errorf("dispatched %s %s, want POST /postings/seen.json", api.method, api.path)
+	}
+	want := map[string]any{"posting_ids": []any{float64(1262788788), float64(1259480157)}}
+	if !reflect.DeepEqual(api.body, want) {
+		t.Errorf("body = %#v, want %#v", api.body, want)
+	}
+
+	text, isError = mcptest.CallText(t, session, "hey_threads", map[string]any{
+		"action": "mark_postings_unseen",
+		"params": map[string]any{"posting_ids": []any{1262788788}},
+	})
+	if isError {
+		t.Fatalf("mark_postings_unseen failed: %s", text)
+	}
+	if api.method != "POST" || api.path != "/postings/unseen.json" {
+		t.Errorf("dispatched %s %s, want POST /postings/unseen.json", api.method, api.path)
+	}
+}
+
+func TestServerStopsIgnoringPostingsByQuery(t *testing.T) {
+	api := &fakeAPI{}
+	_, session := connect(t, api, Config{})
+
+	text, isError := mcptest.CallText(t, session, "hey_threads", map[string]any{
+		"action": "unmute_postings",
+		"params": map[string]any{"posting_ids": "1262788788,1259480157"},
+	})
+	if isError {
+		t.Fatalf("unmute_postings failed: %s", text)
+	}
+	if api.method != "DELETE" || api.path != "/postings/mutings.json?posting_ids=1262788788%2C1259480157" {
+		t.Errorf("dispatched %s %s, want DELETE /postings/mutings.json with the ids in the query", api.method, api.path)
+	}
+}
+
 func TestServerReadOnlyDropsWriteActions(t *testing.T) {
 	srv, session := connect(t, &fakeAPI{}, Config{ReadOnly: true})
 
 	for _, d := range srv.Domains() {
 		if slices.Contains(d.ActionNames(), "create_box_designation") {
 			t.Error("read-only server still serves create_box_designation")
+		}
+		if slices.Contains(d.ActionNames(), "mark_postings_seen") {
+			t.Error("read-only server still serves mark_postings_seen")
 		}
 	}
 
