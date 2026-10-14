@@ -318,7 +318,8 @@ func TestDispatchEmptyResponseWithLocation(t *testing.T) {
 		StatusCode: 204,
 		Headers:    http.Header{"Location": []string{"https://app.hey.com/messages/987"}},
 	}}
-	result, err := (dispatcher{api: api}).handle(context.Background(), threads, mustFind(t, threads, "create_message"), map[string]any{})
+	draft := map[string]any{"entry": map[string]any{"status": "drafted"}}
+	result, err := (dispatcher{api: api}).handle(context.Background(), threads, mustFind(t, threads, "create_message"), draft)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,5 +377,67 @@ func TestDispatchRenameTopicRequiresItsAcknowledgement(t *testing.T) {
 	}
 	if result.IsError {
 		t.Fatalf("an acknowledged rename was reported as an error: %s", textContent(t, result))
+	}
+}
+
+// HEY saves a reply or message that names nobody as a draft and answers with a redirect
+// to the thread, so it never leaves the dispatcher: a caller that took that read for a
+// sent reply and replied again would leave the draft behind.
+func TestDispatchRefusesUnaddressedDeliveries(t *testing.T) {
+	cat := loadForTest(t)
+	threads := domainByKey(t, cat, "threads")
+	message := map[string]any{"subject": "Re: Kitchen renovation quotes", "content": "<div>Thursday works for us.</div>"}
+
+	refused := []struct {
+		action string
+		params map[string]any
+	}{
+		{"create_reply", map[string]any{"entryId": float64(8821), "acting_sender_id": float64(41), "message": message}},
+		{"create_reply", map[string]any{"entryId": float64(8821), "acting_sender_id": float64(41), "message": message,
+			"entry": map[string]any{"addressed": map[string]any{"directly": []any{}, "copied": []any{" "}}}}},
+		{"create_reply", map[string]any{"entryId": float64(8821), "acting_sender_id": float64(41), "message": message,
+			"entry": map[string]any{"addressed": map[string]any{"directly": []any{map[string]any{"email_address": "maria.garcia@example.com"}}}}}},
+		{"create_message", map[string]any{"acting_sender_id": float64(41), "message": message,
+			"entry": map[string]any{"scheduled_delivery": "true", "scheduled_delivery_at_date": "tomorrow", "scheduled_delivery_at_hour": "9"}}},
+	}
+	for _, tc := range refused {
+		api := &fakeAPI{}
+		result, err := (dispatcher{api: api}).handle(context.Background(), threads, mustFind(t, threads, tc.action), tc.params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !result.IsError || !strings.Contains(textContent(t, result), tc.action+" needs at least one recipient") {
+			t.Errorf("%s %v was not refused: %s", tc.action, tc.params["entry"], textContent(t, result))
+		}
+		if api.method != "" {
+			t.Errorf("%s %v reached HEY: %s %s", tc.action, tc.params["entry"], api.method, api.path)
+		}
+	}
+
+	sent := []struct {
+		action string
+		params map[string]any
+	}{
+		{"create_reply", map[string]any{"entryId": float64(8821), "acting_sender_id": float64(41), "message": message,
+			"entry": map[string]any{"addressed": map[string]any{"directly": []any{"maria.garcia@example.com"}}}}},
+		{"create_reply", map[string]any{"entryId": float64(8821), "acting_sender_id": float64(41), "message": message,
+			"entry": map[string]any{"addressed": map[string]any{"blindcopied": "maria.garcia@example.com"}}}},
+		{"create_reply", map[string]any{"entryId": float64(8821), "acting_sender_id": float64(41), "message": message,
+			"entry": map[string]any{"status": "drafted"}}},
+		{"create_message", map[string]any{"acting_sender_id": float64(41), "message": message,
+			"entry": map[string]any{"addressed": map[string]any{"copied": []any{"james.wilson@example.org"}}}}},
+	}
+	for _, tc := range sent {
+		api := &fakeAPI{}
+		result, err := (dispatcher{api: api}).handle(context.Background(), threads, mustFind(t, threads, tc.action), tc.params)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.IsError {
+			t.Errorf("%s %v was refused: %s", tc.action, tc.params["entry"], textContent(t, result))
+		}
+		if api.method != "POST" {
+			t.Errorf("%s %v did not reach HEY", tc.action, tc.params["entry"])
+		}
 	}
 }

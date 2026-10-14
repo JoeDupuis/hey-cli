@@ -54,6 +54,13 @@ func (d dispatcher) handle(ctx context.Context, dom gateway.Domain, op gateway.O
 		return gateway.ErrorResult("internal error: action %q not in domain %q", op.Action, dom.Name()), nil
 	}
 
+	if kind, ok := deliveries[full.ID]; ok && !addressedOrDrafted(params) {
+		return gateway.ErrorResult("%s needs at least one recipient: HEY saves an unaddressed %s as a draft instead of sending it, "+
+			"so nothing was sent or saved. Pass entry.addressed.directly (and copied, blindcopied) as email addresses "+
+			"(new_entry_reply lists a thread's), or entry.status \"drafted\" to save a draft on purpose",
+			full.Action, kind), nil
+	}
+
 	path, body, err := buildRequest(full, params)
 	if err != nil {
 		return gateway.ErrorResult("%v", err), nil
@@ -99,6 +106,46 @@ func (d dispatcher) handle(ctx context.Context, dom gateway.Domain, op gateway.O
 // the same reason.
 var acknowledgedBy = map[string]int{
 	"RenameTopic": http.StatusNoContent,
+}
+
+// deliveries names the writes HEY saves as a draft, rather than sends, when they carry
+// no recipients, and what each one creates. haystack does not reply-all for the caller:
+// an unaddressed reply is answered with a redirect to its thread, the draft expanded,
+// and the dispatcher would hand back that read as if the reply had gone out. A caller
+// that then notices and replies again sends the reply and leaves the draft behind. The
+// SDK's typed Entries().CreateReply and Messages().Send refuse the same request before
+// it is made. UpdateMessage is not here: it sends a draft to the recipients the draft
+// already holds unless entry.addressed replaces them.
+var deliveries = map[string]string{
+	"CreateReply":   "reply",
+	"CreateMessage": "message",
+}
+
+// addressedOrDrafted reports whether a reply or message names at least one recipient,
+// or is being saved as a draft on purpose, which needs none. haystack applies Array()
+// to each kind, so a bare address counts as well as a list of them; anything that is
+// not an address (a contact object copied from new_entry_reply, say) does not.
+func addressedOrDrafted(params map[string]any) bool {
+	entry, _ := params["entry"].(map[string]any)
+	if status, _ := entry["status"].(string); status == "drafted" {
+		return true
+	}
+	addressed, _ := entry["addressed"].(map[string]any)
+	for _, kind := range []string{"directly", "copied", "blindcopied"} {
+		switch recipients := addressed[kind].(type) {
+		case string:
+			if strings.TrimSpace(recipients) != "" {
+				return true
+			}
+		case []any:
+			for _, recipient := range recipients {
+				if address, ok := recipient.(string); ok && strings.TrimSpace(address) != "" {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // nextCursorFields extracts the next-read cursor from a geared_pagination Link
